@@ -1,9 +1,14 @@
 #!/bin/sh
 
+#
+# Place this script in the /jffs directory
+# chmod 755 blocking.sh
+#
+
 # logfile
 LOGFILE="/tmp/blockinternet.log"
 
-# list of IPs to block
+# list of IPs to block, leave a space between each
 BLOCKEDIPS="192.168.1.12 192.168.1.32 192.168.1.236"
 
 # file that exist when we are in a blocked period
@@ -14,13 +19,19 @@ ISBLOCKEDFILE="/jffs/isblocked.txt"
 #
 blockIPs()
 {
-  for blockedIP in $BLOCKEDIPS; do
-    echo "$(date) Blocking $2 $blockedIP" >> $LOGFILE
-    /usr/sbin/iptables -I FORWARD -s $blockedIP -j DROP
-  done
-
   # create block file to indicate we are now blocking
   echo "$(date) Blocking internet $2" > $ISBLOCKEDFILE
+
+  for blockedIP in $BLOCKEDIPS; do
+    # check if the blocked IP is defacto blocked
+    STR=`/usr/sbin/iptables -L FORWARD | grep $blockedIP`
+    if [ "$STR" = "" ]; then
+      /usr/sbin/iptables -I FORWARD -s $blockedIP -j DROP
+      echo "$(date) Blocking IP $2 " $blockedIP  >> $LOGFILE
+    fi
+  done
+
+  echo "$(date) Blocking completed " >> $LOGFILE
 }
 
 #
@@ -33,8 +44,11 @@ unblockIPs()
   /bin/rm $ISBLOCKEDFILE
 
   for blockedIP in $BLOCKEDIPS; do
-    /usr/sbin/iptables -D FORWARD -s $blockedIP -j DROP
-    echo "$(date) Unblocking $2 $blockedIP" >> $LOGFILE
+    STR=`/usr/sbin/iptables -L FORWARD | grep $blockedIP`
+    if [ "$STR" != "" ]; then
+      /usr/sbin/iptables -D FORWARD -s $blockedIP -j DROP
+      echo "$(date) Unblocking $2 $blockedIP" >> $LOGFILE
+    fi
   done
 
   echo "$(date) Unblocking completed " >> $LOGFILE
@@ -48,21 +62,11 @@ checkBlockedIPs()
 {
   echo "$(date) Checking blocking..." >> $LOGFILE
 
-  # are we in a blocked period, then check if iptables rules is in place
   if [ -f "$ISBLOCKEDFILE" ]; then
     echo "$(date) We are in a blocked period" >> $LOGFILE
-
-    for blockedIP in $BLOCKEDIPS; do
-      # check if the blocked IP is defacto blocked, may well been removed by system
-      STR=`/usr/sbin/iptables -L FORWARD | grep $blockedIP`
-      if [ "$STR" = "" ]; then
-        echo "$(date) Blocked IP " $blockedIP " not blocked by iptables while in blocked period, adding block!" >> $LOGFILE
-        /usr/sbin/iptables -I FORWARD -s $blockedIP -j DROP
-      fi
-    done
+    blockIPs
   else
     echo "$(date) Not in a blocked period" >> $LOGFILE
-    # remove any blocks there may be left, could happen if unblock/block clash 
     unblockIPs
   fi
 }
