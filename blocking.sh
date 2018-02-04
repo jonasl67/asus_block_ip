@@ -8,7 +8,7 @@
 # logfile
 LOGFILE="/tmp/blockinternet.log"
 
-# list of IPs to block, leave a space between each
+# list of IPs to block
 BLOCKEDIPS="192.168.1.12 192.168.1.32 192.168.1.236"
 
 # file that exist when we are in a blocked period
@@ -24,15 +24,18 @@ blockIPs()
 
   for blockedIP in $BLOCKEDIPS; do
     # check if the blocked IP is defacto blocked
-    STR=`/usr/sbin/iptables -L FORWARD | grep $blockedIP`
+    STR=`/usr/sbin/iptables -vL FORWARD | grep $blockedIP`
     if [ "$STR" = "" ]; then
       /usr/sbin/iptables -I FORWARD -s $blockedIP -j DROP
-      echo "$(date) Blocking IP $2 " $blockedIP  >> $LOGFILE
+      echo "$(date) Blocked IP " $blockedIP $2  >> $LOGFILE
+    else
+      echo "$(date) Blocked IP stats:" $STR  >> $LOGFILE
     fi
   done
 
-  echo "$(date) Blocking completed " >> $LOGFILE
+  #echo "$(date) Blocking completed " >> $LOGFILE
 }
+
 
 #
 # Unblock IPs
@@ -47,11 +50,11 @@ unblockIPs()
     STR=`/usr/sbin/iptables -L FORWARD | grep $blockedIP`
     if [ "$STR" != "" ]; then
       /usr/sbin/iptables -D FORWARD -s $blockedIP -j DROP
-      echo "$(date) Unblocking $2 $blockedIP" >> $LOGFILE
+      echo "$(date) Unblocking $2 $blockedIP $STR " >> $LOGFILE
     fi
   done
 
-  echo "$(date) Unblocking completed " >> $LOGFILE
+  #echo "$(date) Unblocking completed " >> $LOGFILE
 }
 
 
@@ -60,17 +63,16 @@ unblockIPs()
 #
 checkBlockedIPs()
 {
-  echo "$(date) Checking blocking..." >> $LOGFILE
+  #echo "$(date) Checking blocking..." >> $LOGFILE
 
   if [ -f "$ISBLOCKEDFILE" ]; then
-    echo "$(date) We are in a blocked period" >> $LOGFILE
+    #echo "$(date) We are in a blocked period" >> $LOGFILE
     blockIPs
   else
-    echo "$(date) Not in a blocked period" >> $LOGFILE
+    #echo "$(date) Not in a blocked period" >> $LOGFILE
     unblockIPs
   fi
 }
-
 
 #
 # Scripts starts here
